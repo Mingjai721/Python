@@ -1,0 +1,64 @@
+from matplotlib import pyplot as plt
+import pandas as pd
+import numpy as np
+from scipy import stats 
+from scipy.stats import norm, lognorm, gaussian_kde, t, laplace
+from statsmodels.stats.diagnostic import acorr_ljungbox
+
+
+dy = pd.read_csv('HSI.csv', index_col=0)
+dy.index = pd.to_datetime(dy.index)
+wy=dy.resample('W-FRI').last()
+dyRet = np.log(dy/dy.shift())
+wyRet = np.log((wy/wy.shift()))
+my=dy.resample('M').last()
+
+cov=wyRet.cov()
+y = np.array(dy["700 HK Equity"])
+yGRet = y[1:]/y[:-1]
+yRet = np.log(yGRet)
+mu = np.average(yRet)
+sig = np.std(yRet)
+
+plt.plot(111,label="700 HK")
+plt.hist(yRet, normed=True, bins=100)
+distance = np.linspace(min(yRet),max(yRet))
+plt.hold(True)
+plt.plot(distance, norm.pdf(distance,mu,sig))
+plt.tick_params(axis='both', which='major', labelsize=10)
+plt.xlabel('log return')
+plt.ylabel('density')
+plt.legend(loc="upper right")
+
+
+stat,pvalue1=stats.normaltest(wyRet.iloc[:,0:39],axis=0,nan_policy='omit')
+stat,pvalue2=stats.normaltest(wyRet.iloc[:,40:50],axis=0,nan_policy='omit')
+pvalue=np.concatenate((np.array(pvalue1), np.array(pvalue2)), axis=0)
+
+plt.subplot(221)
+plt.hist(pvalue, normed=False, bins=100)
+distance = np.linspace(min(pvalue),max(pvalue))
+plt.hold(True)
+plt.tick_params(axis='both', which='major', labelsize=10)
+plt.xlabel('P-values')
+plt.ylabel('Count')
+plt.legend(loc="upper right")
+
+v={}
+for i in range(0,50):
+    for yi in year:
+        for mi in month:
+            try:
+                temp = dyRet.ix[(dyRet.index.year == yi) & (dyRet.index.month == mi) , i]
+                if len(temp)==0:
+                    break
+                else:
+                    vol = np.std(temp)
+                    if yi *100+ mi in v:
+                        v[yi *100+ mi].append(vol)
+                    else:
+                        v[yi *100+ mi] = []
+                        v[yi *100+ mi].append(vol)
+            except:
+                continue
+pd.DataFrame(v).T.to_csv('rollingSig.csv')
