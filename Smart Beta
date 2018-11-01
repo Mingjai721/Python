@@ -1,0 +1,46 @@
+import pandas as pd
+import numpy as np
+
+df=pd.read_excel('dataset.xlsx',sheet_name='Q1',index_col='Date')
+df.index=pd.to_datetime(df.index)
+mf=df.resample('M').last()
+mfRet=mf/mf.shift()-1
+mfRet2=mfRet.drop(mfRet.index[0])
+
+
+from scipy.optimize import minimize
+def ERC(weights, cov):
+    temp = np.dot(cov,weights) / np.dot(np.dot(weights, cov),weights)**(1/2)
+    MC = weights[:] * temp[:]
+    return (sum(((np.dot(np.dot(weights,cov),weights))**(1/2) / len(weights) -MC)**2))
+
+def MDR(weights,cov):
+    for i in range(cov.shape[0]):
+        temp=0
+        temp=temp+weights[i]*cov.iloc[i,i]
+    return (-temp/np.dot(np.dot(weights,cov),weights)**(1/2))
+
+def GMV(weights,cov):
+    return (np.dot(np.dot(weights,cov),weights)**(1/2))
+
+def MSR(weights,cov):
+    mean=[np.mean(mfRet2.iloc[:,i]) for i in range(mfRet2.shape[1])]
+    mean2=np.array(mean)
+    return ((np.dot(mean2,weights)-0.005)/np.dot(np.dot(weights,cov),weights)**(1/2))
+
+def find_weight(data, beta, long = 1):
+    cov = data.cov()
+    n = cov.shape[0]
+    weights = np.ones(n) /n
+    cons = ({'type': 'eq', 'fun': lambda x: 1 - sum(x)}) 
+    bnds = [(0,0.5) for i in weights]
+    if long == 1:
+        res = minimize(beta, x0 = weights, args = (cov), method = 'SLSQP', constraints = cons,
+        bounds = bnds, tol = 1e-30)
+    elif long == 0:
+        res = minimize(beta, x0 = weights, args = (cov), method = 'SLSQP', constraints = cons, tol = 1e-30)
+    return res.x
+
+w_MDR=find_weight(mfRet2, beta=MDR, long = 1)
+w_GMV=find_weight(mfRet2, beta=GMV, long = 1)
+w_MSR=find_weight(mfRet2, beta=MSR, long = 1)
