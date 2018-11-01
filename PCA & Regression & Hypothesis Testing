@@ -1,0 +1,58 @@
+import pandas as pd
+import numpy as np
+from scipy import stats
+
+df=pd.read_csv('Factors.csv', index_col=0)
+df.index = pd.to_datetime(df.index)
+r=np.log(df/df.shift())
+r=r.drop(r.index[0])
+cov=r.cov()
+
+#PCA
+#method 1
+from statsmodels.sandbox.tools.tools_pca import pcasvd
+pca=pcasvd(r,keepdim=3,demean=True)
+pca1=pca[1]
+
+#method 2
+from sklearn.decomposition import PCA
+p=PCA(n_components=3) # n_components can be integer or float in (0,1)
+p.fit(r)  # fit the model
+pca2=p.fit_transform(r) # transformed data
+
+#linear regression
+dy=pd.read_csv("Indices.csv",index_col=0)
+dy.index = pd.to_datetime(dy.index)
+dyr=np.log(dy/dy.shift())
+dyr=dyr.drop(dyr.index[0])
+import statsmodels.api as sm
+#b=[[0 for i in range(20)]for j in range(4)]
+b={}
+x=sm.add_constant(pca2)
+for i in range(np.shape(dyr)[1]):
+    results = sm.OLS(dyr.iloc[:,i], x).fit()
+    b[list(dyr)[i]]=results.params
+    #results.summary()
+pd.DataFrame(b).to_csv('beta.csv')
+
+
+#testing H0: alpha = 0 for 3-factor Model
+dx=pd.read_csv("Topix30.csv",index_col=0)
+dx.index = pd.to_datetime(dx.index, format='%d/%m/%Y')
+dxr=np.log(dx/dx.shift())
+dxr=dxr.drop(dxr.index[0])
+
+fac=pd.read_csv("Japan_3_Factors_Daily.csv",index_col=0)
+fac.index = pd.to_datetime(fac.index, format='%Y-%m-%d')
+#match the date in dxr to data in 3 factors
+fac2=fac.loc[fac.index & dxr.index]
+
+p={}
+xf=sm.add_constant(fac2)
+for i in range(np.shape(dxr)[1]):
+    results = sm.OLS(dxr.iloc[:,i], np.array(xf.iloc[:,0:2])).fit()
+    p[list(dxr)[i]]=[]
+    p[list(dxr)[i]].append(stats.t.sf(np.abs(results.params[0]/results.bse[0]), np.shape(xf)[0]-1)*2)
+    results2 = sm.OLS(dxr.iloc[:,i], np.array(xf.iloc[:,0:4])).fit()
+    p[list(dxr)[i]].append(stats.t.sf(np.abs(results2.params[0]/results2.bse[0]), np.shape(xf)[0]-1)*2)
+results2.summary()
