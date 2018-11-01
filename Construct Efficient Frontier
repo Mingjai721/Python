@@ -1,0 +1,76 @@
+from matplotlib import pyplot as plt
+import pandas as pd
+import numpy as np
+
+df=pd.read_excel('dataset.xlsx',sheet_name='Q1',index_col='Date')
+df.index=pd.to_datetime(df.index)
+mf=df.resample('M').last()
+mfRet=mf/mf.shift()-1
+mfRet2=mfRet.drop(mfRet.index[0])
+
+#risky assets
+ar = np.power((1+mfRet2).prod(0),1.0/59)-1
+cov=mfRet2.cov()
+from numpy.linalg import inv
+ar=np.matrix(ar).T
+cov=np.matrix(cov)
+I= np.array([])
+for i in range(0,11):
+    I = np.append(I, 1)
+I=np.matrix(I).T
+a=np.matmul(np.matmul(ar.T,inv(cov)),ar)
+b=np.matmul(np.matmul(ar.T,inv(cov)),I)
+c=np.matmul(np.matmul(I.T,inv(cov)),I)
+meanp=np.array([])
+for i in range(0,20):
+    meanp=np.append(meanp,0.005+i*0.005)
+lamb = [(meanp[i]*c-b)/(a*c-b*b) for i in range(0,20)]
+gamma = [(a-b*meanp[i])/(a*c-b*b) for i in range(0,20)]
+
+weight=[[lamb[i]*np.matmul(inv(cov),ar)[j]+gamma[i]*np.matmul(inv(cov),I)[j] for j in range(0,11)] for i in range(0,20)]
+weight=np.squeeze(np.array(weight))
+var=[np.matmul(np.matmul(weight[i].T,cov),weight[i]) for i in range(0,20)]
+sd=np.power(np.squeeze(np.array(var)),0.5)
+
+#plt.scatter(sd,meanp,c='red')
+plt.plot(sd, meanp, '-o',c='red')
+plt.xlabel('standard deviation')
+plt.ylabel('expected return')
+
+#with risk-free assets
+rf=0.005
+temp=ar-rf*I
+#use np.asscalar to convert 1x1 matrix to scalar for further calculation
+w=[np.asscalar((meanp[x]-rf)/np.matmul(np.matmul(temp.T,inv(cov)),temp))*np.matmul(inv(cov),temp) for x in range(0,20)] 
+varf=[np.matmul(np.matmul(w[i].T,cov),w[i]) for i in range(0,20)]
+sdf=np.power(np.squeeze(np.array(varf)),0.5)
+
+plt.plot(sdf, meanp, '-o',c='blue')
+
+p=pd.read_excel('FINA 4380 HW2 dataset.xlsx',sheet_name='Q6')
+ar2=np.matrix([np.power(p.iloc[0,i]/df.iloc[-1,i],1.0/12)-1 for i in range (0,11)]).T
+a2=np.matmul(np.matmul(ar2.T,inv(cov)),ar2)
+b2=np.matmul(np.matmul(ar2.T,inv(cov)),I)
+c2=np.matmul(np.matmul(I.T,inv(cov)),I)
+lamb2 = [(meanp[i]*c2-b2)/(a2*c2-b2*b2) for i in range(0,20)]
+gamma2 = [(a2-b2*meanp[i])/(a2*c2-b2*b2) for i in range(0,20)]
+
+weight2=[[lamb2[i]*np.matmul(inv(cov),ar2)[j]+gamma2[i]*np.matmul(inv(cov),I)[j] for j in range(0,11)] for i in range(0,20)]
+weight2=np.squeeze(np.array(weight2))
+var2=[np.matmul(np.matmul(weight2[i].T,cov),weight2[i]) for i in range(0,20)]
+sd2=np.power(np.squeeze(np.array(var2)),0.5)
+
+plt.plot(sd2, meanp, '-o',c='green')
+plt.xlabel('standard deviation')
+plt.ylabel('expected return')
+
+#with risk-free assets
+rf=0.005
+temp2=ar2-rf*I
+#use np.asscalar to convert 1x1 matrix to scalar for further calculation
+w2=[np.asscalar((meanp[x]-rf)/np.matmul(np.matmul(temp2.T,inv(cov)),temp2))*np.matmul(inv(cov),temp2) for x in range(0,20)] 
+varf2=[np.matmul(np.matmul(w2[i].T,cov),w2[i]) for i in range(0,20)]
+sdf2=np.power(np.squeeze(np.array(varf2)),0.5)
+
+plt.plot(sdf2, meanp, '-o',c='blue')
+plt.show()
